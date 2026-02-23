@@ -1,0 +1,89 @@
+{
+  "name": "jiuyi",
+  "productName": "jiuyi",
+  "version": "1.0.0",
+  "description": "Save live stream to local file with Electron + FFmpeg",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "cli:record": "node cli.js",
+    "prepare:ffmpeg:linux:x64": "npm install --no-save --force @ffmpeg-installer/linux-x64",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac dmg zip",
+    "dist:win": "electron-builder --win nsis zip --x64",
+    "prepare:ffmpeg:win:x86": "npm install --no-save --force @ffmpeg-installer/win32-ia32",
+    "dist:win:x86": "npm run prepare:ffmpeg:win:x86 && electron-builder --win nsis zip --ia32",
+    "dist:win:all": "npm run prepare:ffmpeg:win:x86 && electron-builder --win nsis zip --x64 --ia32",
+    "dist:linux:cli": "npm run prepare:ffmpeg:linux:x64 && pkg cli.js --targets node18-linux-x64 --output dist/jiuyi-cli-linux-x64"
+  },
+  "keywords": [
+    "electron",
+    "livestream",
+    "ffmpeg",
+    "recorder"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^26.8.1",
+    "pkg": "^5.8.1"
+  },
+  "build": {
+    "appId": "com.jiuyi.recorder",
+    "productName": "jiuyi",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "extraResources": [
+      {
+        "from": "node_modules/@ffmpeg-installer",
+        "to": "ffmpeg-bundled",
+        "filter": [
+          "**/ffmpeg",
+          "**/ffmpeg.exe"
+        ]
+      }
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "styles.css",
+      "README.md",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.video",
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/@ffmpeg-installer/**/ffmpeg",
+      "node_modules/@ffmpeg-installer/**/ffmpeg.exe",
+      "node_modules/@ffmpeg-installer/**/package.json"
+    ]
+  }
+}

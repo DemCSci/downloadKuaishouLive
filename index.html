@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jiuyi</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="card">
+        <h1>jiuyi</h1>
+        <p class="sub-title">
+          输入直播流地址，点击开始即可保存到本地视频目录（默认 MKV）。
+        </p>
+
+        <label for="streamUrl" class="input-label">直播链接</label>
+        <div class="input-wrap">
+          <input
+            id="streamUrl"
+            type="url"
+            spellcheck="false"
+            placeholder="例如：https://hw-origin.pull.yximgs.com/xxx.flv?..."
+          />
+        </div>
+
+        <div class="dir-row">
+          <span id="outputDir" class="output-dir">保存目录: 加载中...</span>
+          <button id="chooseDirBtn" class="btn ghost">选择保存目录</button>
+        </div>
+
+        <div class="actions">
+          <button id="startBtn" class="btn primary">开始录制</button>
+          <button id="stopBtn" class="btn danger" disabled>停止录制</button>
+          <button id="openBtn" class="btn ghost" disabled>打开文件位置</button>
+        </div>
+
+        <div class="metrics-row">
+          <span id="fileSize">文件大小: 0 B</span>
+          <span id="diskFree">磁盘剩余: --</span>
+        </div>
+
+        <div class="status-row">
+          <span class="status-tag" id="statusTag">空闲中</span>
+          <span id="statusText">等待开始录制</span>
+        </div>
+
+        <p id="outputPath" class="output-path"></p>
+
+        <div class="log-wrap">
+          <div class="log-title">运行日志</div>
+          <pre id="logs"></pre>
+        </div>
+      </section>
+    </main>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>
