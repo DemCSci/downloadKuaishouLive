@@ -54,6 +54,7 @@ npm run dist:linux:cli
 虽然 `electron-builder` 支持跨平台构建，但在实际签名/依赖环境方面，使用目标系统原生构建最稳定。
 
 说明：打包时会自动把 FFmpeg 一并带入安装包，目标机器通常无需额外安装 FFmpeg。
+说明：本地 npm 打包脚本显式使用 `--publish never`，只构建，不直接发布。
 
 注意：
 
@@ -66,6 +67,18 @@ npm run dist:linux:cli
 
 - 文件：`.github/workflows/build.yml`
 - 触发方式：GitHub Actions 手动运行 `Build Desktop App`
+
+## GitHub 自动发布 Release
+
+当前 workflow 已内置自动发布：
+
+- 当你 push 标签（如 `v1.0.1`）时，会先构建 mac/win/linux 产物，再自动创建/更新对应 Release 并上传文件。
+- 发布步骤使用 `secrets.GITHUB_TOKEN`（已映射到 `GH_TOKEN`），通常不需要手动创建 PAT。
+
+如果你的仓库是私有或组织策略较严格，请确认：
+
+- 仓库 `Settings -> Actions -> General -> Workflow permissions` 为 `Read and write permissions`
+- 工作流文件中已包含 `permissions: contents: write`
 
 ## Linux 服务器 CLI 用法
 
