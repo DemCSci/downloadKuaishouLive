@@ -6,6 +6,7 @@ const { promisify } = require('util');
 
 const execFileAsync = promisify(execFile);
 const LOW_DISK_THRESHOLD_BYTES = 10 * 1024 * 1024 * 1024;
+const RECOMMENDED_FFMPEG_MAJOR_VERSION = 5;
 
 app.setName('jiuyi');
 
@@ -271,6 +272,44 @@ function getBundledFfmpegPath() {
   return '';
 }
 
+function getLocalOverrideFfmpegPaths() {
+  const binaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  const candidates = [];
+  const byPlatform = process.platform === 'win32'
+    ? process.arch === 'ia32'
+      ? ['win32-ia32', 'win32-x64']
+      : ['win32-x64', 'win32-ia32']
+    : process.platform === 'darwin'
+      ? process.arch === 'arm64'
+        ? ['darwin-arm64', 'darwin-x64']
+        : ['darwin-x64', 'darwin-arm64']
+      : process.platform === 'linux'
+        ? process.arch === 'arm64'
+          ? ['linux-arm64', 'linux-x64']
+          : process.arch === 'arm'
+            ? ['linux-arm', 'linux-x64']
+            : process.arch === 'ia32'
+              ? ['linux-ia32', 'linux-x64']
+              : ['linux-x64', 'linux-ia32']
+        : [];
+
+  if (app.isPackaged) {
+    candidates.push(path.join(path.dirname(process.execPath), binaryName));
+    candidates.push(path.join(process.resourcesPath, binaryName));
+    candidates.push(path.join(process.resourcesPath, 'ffmpeg-custom', binaryName));
+    byPlatform.forEach((platformDir) => {
+      candidates.push(path.join(process.resourcesPath, 'ffmpeg-custom', platformDir, binaryName));
+    });
+  } else {
+    candidates.push(path.join(process.cwd(), binaryName));
+    byPlatform.forEach((platformDir) => {
+      candidates.push(path.join(process.cwd(), 'ffmpeg-custom', platformDir, binaryName));
+    });
+  }
+
+  return candidates.filter((candidatePath) => fs.existsSync(candidatePath));
+}
+
 function getDevelopmentFfmpegPath() {
   try {
     const installer = require('@ffmpeg-installer/ffmpeg');
@@ -284,43 +323,205 @@ function getDevelopmentFfmpegPath() {
   return '';
 }
 
-function resolveFfmpegBinary() {
-  const bundledPath = getBundledFfmpegPath();
-  if (bundledPath) {
-    return bundledPath;
+function parseFfmpegVersion(rawVersion) {
+  if (!rawVersion || typeof rawVersion !== 'string') {
+    return {
+      major: 0,
+      minor: 0,
+      patch: 0,
+      score: 0,
+      text: '',
+    };
   }
 
-  const developmentPath = getDevelopmentFfmpegPath();
-  if (developmentPath) {
-    return developmentPath;
+  const versionText = rawVersion.trim();
+  const match = versionText.match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+  if (!match) {
+    return {
+      major: 0,
+      minor: 0,
+      patch: 0,
+      score: 0,
+      text: versionText,
+    };
   }
 
-  return 'ffmpeg';
+  const major = Number(match[1] || 0);
+  const minor = Number(match[2] || 0);
+  const patch = Number(match[3] || 0);
+  const score = major * 1_000_000 + minor * 1_000 + patch;
+
+  return {
+    major,
+    minor,
+    patch,
+    score,
+    text: versionText,
+  };
 }
 
-function checkFfmpegAvailable() {
-  const ffmpegBinary = resolveFfmpegBinary();
+function probeFfmpegBinary(binaryPath) {
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
 
-  return new Promise((resolve, reject) => {
-    const probe = spawn(ffmpegBinary, ['-version']);
+    const probe = spawn(binaryPath, ['-version']);
+
+    probe.stdout.on('data', (chunk) => {
+      if (stdout.length < 4096) {
+        stdout += chunk.toString('utf8');
+      }
+    });
+
+    probe.stderr.on('data', (chunk) => {
+      if (stderr.length < 4096) {
+        stderr += chunk.toString('utf8');
+      }
+    });
 
     probe.once('error', (error) => {
-      reject(
-        new Error(
-          `找不到可用 FFmpeg。请确认打包产物包含 ffmpeg，或系统 PATH 可执行 ffmpeg。${error.message}`
-        )
-      );
+      resolve({
+        ok: false,
+        error: error.message,
+      });
     });
 
     probe.once('close', (code) => {
-      if (code === 0) {
-        resolve(ffmpegBinary);
+      if (code !== 0) {
+        resolve({
+          ok: false,
+          error: `退出码: ${code}`,
+        });
         return;
       }
 
-      reject(new Error(`ffmpeg 检查失败，退出码: ${code}`));
+      const mergedOutput = `${stdout}\n${stderr}`;
+      const versionLine = mergedOutput
+        .split(/\r?\n/)
+        .find((line) => line.toLowerCase().includes('ffmpeg version')) || '';
+      const versionMatch = versionLine.match(/ffmpeg version\s+([^\s]+)/i);
+      const versionRaw = versionMatch ? versionMatch[1] : '';
+
+      resolve({
+        ok: true,
+        versionRaw,
+        version: parseFfmpegVersion(versionRaw),
+      });
     });
   });
+}
+
+function pushUniqueCandidate(candidates, seen, binaryPath, source, priority, options = {}) {
+  const { mustExist = false } = options;
+  if (!binaryPath || typeof binaryPath !== 'string') {
+    return;
+  }
+
+  const trimmedPath = binaryPath.trim();
+  if (!trimmedPath) {
+    return;
+  }
+
+  if (mustExist && !fs.existsSync(trimmedPath)) {
+    return;
+  }
+
+  const key = process.platform === 'win32' ? trimmedPath.toLowerCase() : trimmedPath;
+  if (seen.has(key)) {
+    return;
+  }
+
+  seen.add(key);
+  candidates.push({
+    binaryPath: trimmedPath,
+    source,
+    priority,
+  });
+}
+
+function collectFfmpegCandidates() {
+  const candidates = [];
+  const seen = new Set();
+
+  const envOverride = process.env.JIUYI_FFMPEG_PATH;
+  pushUniqueCandidate(candidates, seen, envOverride, 'env', 0, { mustExist: true });
+
+  getLocalOverrideFfmpegPaths().forEach((candidatePath) => {
+    pushUniqueCandidate(candidates, seen, candidatePath, 'local', 1, { mustExist: true });
+  });
+
+  // 系统 PATH 中的 ffmpeg（命令名）
+  pushUniqueCandidate(candidates, seen, 'ffmpeg', 'system', 2, { mustExist: false });
+
+  pushUniqueCandidate(candidates, seen, getBundledFfmpegPath(), 'bundled', 3, { mustExist: true });
+  pushUniqueCandidate(candidates, seen, getDevelopmentFfmpegPath(), 'development', 4, {
+    mustExist: true,
+  });
+
+  return candidates;
+}
+
+function formatFfmpegSource(source) {
+  if (source === 'env') {
+    return '环境变量 JIUYI_FFMPEG_PATH';
+  }
+  if (source === 'local') {
+    return '本地覆盖文件';
+  }
+  if (source === 'system') {
+    return '系统 PATH';
+  }
+  if (source === 'bundled') {
+    return '应用内置';
+  }
+  if (source === 'development') {
+    return '开发依赖';
+  }
+
+  return source || 'unknown';
+}
+
+async function checkFfmpegAvailable() {
+  const candidates = collectFfmpegCandidates();
+  const success = [];
+  const failed = [];
+
+  for (const candidate of candidates) {
+    // eslint-disable-next-line no-await-in-loop
+    const probe = await probeFfmpegBinary(candidate.binaryPath);
+    if (probe.ok) {
+      success.push({
+        ...candidate,
+        versionRaw: probe.versionRaw,
+        version: probe.version,
+      });
+      continue;
+    }
+
+    failed.push(`${candidate.binaryPath}(${probe.error || 'unknown'})`);
+  }
+
+  if (success.length === 0) {
+    throw new Error(
+      `找不到可用 FFmpeg。请安装较新版本 FFmpeg，或设置环境变量 JIUYI_FFMPEG_PATH 指向 ffmpeg 可执行文件。尝试过: ${failed.join('; ')}`
+    );
+  }
+
+  success.sort((a, b) => {
+    if (b.version.score !== a.version.score) {
+      return b.version.score - a.version.score;
+    }
+    return a.priority - b.priority;
+  });
+
+  const selected = success[0];
+  if (selected.version.major > 0 && selected.version.major < RECOMMENDED_FFMPEG_MAJOR_VERSION) {
+    sendRecordingEvent('log', {
+      message: `当前 FFmpeg 版本较低（${selected.version.text || selected.versionRaw}），建议升级到 ${RECOMMENDED_FFMPEG_MAJOR_VERSION}.x 或更高版本，以避免部分直播流解析失败。`,
+    });
+  }
+
+  return selected;
 }
 
 async function resolveDouyinStreamUrl(pageUrl, timeoutMs = 25000) {
@@ -588,7 +789,11 @@ async function startRecording(startPayload) {
     throw new Error('当前已有录制任务在运行');
   }
 
-  const ffmpegBinary = await checkFfmpegAvailable();
+  const ffmpegInfo = await checkFfmpegAvailable();
+  const ffmpegBinary = ffmpegInfo.binaryPath;
+  sendRecordingEvent('log', {
+    message: `已选择 FFmpeg: ${ffmpegBinary}（来源: ${formatFfmpegSource(ffmpegInfo.source)}，版本: ${ffmpegInfo.versionRaw || 'unknown'}）`,
+  });
   let inputUrl = url;
 
   if (mode === 'douyin') {
@@ -628,7 +833,7 @@ async function startRecording(startPayload) {
 
   sendRecordingEvent('started', {
     outputPath: currentOutputPath,
-    message: `已开始录制（${mode === 'douyin' ? '抖音直播' : '通用直播流'}），正在写入本地文件。FFmpeg: ${ffmpegBinary}`,
+    message: `已开始录制（${mode === 'douyin' ? '抖音直播' : '通用直播流'}），正在写入本地文件。FFmpeg: ${ffmpegBinary}${ffmpegInfo.versionRaw ? ` (${ffmpegInfo.versionRaw})` : ''}`,
   });
   startProgressTicker();
 

@@ -78,6 +78,10 @@ npm run dist:win:all
 
 - Windows 的 `*-unpacked` 目录可直接复制到目标机运行（需完整目录，不可只拷贝 exe）。
 - 项目已配置打包内置 ffmpeg，目标机通常无需额外安装 ffmpeg。
+- `dist:win*` 会在打包前自动下载较新 FFmpeg（二进制）到 `ffmpeg-custom/` 后再打包（默认 `x64=b6.1.1`，`ia32=b6.0` 兼容回退）。
+- 可通过环境变量覆盖下载配置：
+  - `FFMPEG_CUSTOM_RELEASE`（强制所有架构使用同一 release，默认按架构自动选择）
+  - `FFMPEG_CUSTOM_BASE_URL`（默认 `https://cdn.npmmirror.com/binaries/ffmpeg-static`）
 
 ---
 
@@ -141,12 +145,27 @@ chmod +x ./jiuyi-cli-linux-x64
 - 直播 URL 可能过期（带签名参数如 `hwTime/hwSecret`）
 - 重新获取最新拉流地址再试
 
-### 6.2 录制很快停止
+### 6.2 Windows 报错 `Video codec (c) is not implemented`
+
+原因：
+
+- 当前 FFmpeg 版本过低，无法解析该直播流编码。
+
+处理方式（任选其一）：
+
+- 安装新版 FFmpeg，并设置环境变量 `JIUYI_FFMPEG_PATH` 指向 `ffmpeg.exe` 完整路径
+- 将新版 `ffmpeg.exe` 放在 `jiuyi.exe` 同级目录
+
+说明：
+
+- 应用会在启动录制时自动选择可用且版本更高的 FFmpeg，并在日志里输出最终使用路径与版本。
+
+### 6.3 录制很快停止
 
 - 检查磁盘剩余是否低于阈值（默认 10GB）
 - 可使用 `--threshold-gb` 调整，或 `--no-low-disk-protect` 关闭保护
 
-### 6.3 复制到其他机器后无法启动
+### 6.4 复制到其他机器后无法启动
 
 - `win-*-unpacked` 必须完整复制整个目录
 - Linux 二进制需要 `chmod +x`

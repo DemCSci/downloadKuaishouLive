@@ -7,14 +7,17 @@
   "scripts": {
     "start": "electron .",
     "cli:record": "node cli.js",
+    "prepare:ffmpeg:custom:win:x64": "node scripts/prepare-ffmpeg-custom.js win32-x64",
+    "prepare:ffmpeg:custom:win:x86": "node scripts/prepare-ffmpeg-custom.js win32-ia32",
+    "prepare:ffmpeg:custom:win:all": "node scripts/prepare-ffmpeg-custom.js win:all",
     "prepare:ffmpeg:linux:x64": "npm install --no-save --force @ffmpeg-installer/linux-x64",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --publish never",
     "dist:mac": "electron-builder --mac dmg zip --publish never",
-    "dist:win": "electron-builder --win nsis zip --x64 --publish never",
+    "dist:win": "npm run prepare:ffmpeg:custom:win:x64 && electron-builder --win nsis zip --x64 --publish never",
     "prepare:ffmpeg:win:x86": "npm install --no-save --force @ffmpeg-installer/win32-ia32",
-    "dist:win:x86": "npm run prepare:ffmpeg:win:x86 && electron-builder --win nsis zip --ia32 --publish never",
-    "dist:win:all": "npm run prepare:ffmpeg:win:x86 && electron-builder --win nsis zip --x64 --ia32 --publish never",
+    "dist:win:x86": "npm run prepare:ffmpeg:custom:win:x86 && npm run prepare:ffmpeg:win:x86 && electron-builder --win nsis zip --ia32 --publish never",
+    "dist:win:all": "npm run prepare:ffmpeg:custom:win:all && npm run prepare:ffmpeg:win:x86 && electron-builder --win nsis zip --x64 --ia32 --publish never",
     "dist:linux:cli": "npm run prepare:ffmpeg:linux:x64 && pkg cli.js --targets node18-linux-x64 --output dist/jiuyi-cli-linux-x64"
   },
   "keywords": [
@@ -38,6 +41,15 @@
       "output": "dist"
     },
     "extraResources": [
+      {
+        "from": "ffmpeg-custom",
+        "to": "ffmpeg-custom",
+        "filter": [
+          "**/ffmpeg",
+          "**/ffmpeg.exe",
+          "**/metadata.json"
+        ]
+      },
       {
         "from": "node_modules/@ffmpeg-installer",
         "to": "ffmpeg-bundled",
