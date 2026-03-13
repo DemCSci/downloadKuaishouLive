@@ -1,0 +1,88 @@
+[2026-03-14 00:05:19] [ui] 应用已就绪，默认使用通用直播流模式。
+[2026-03-14 00:05:21] [ui] 已切换到抖音直播模式
+[2026-03-14 00:05:58] [ui] 开始录制（抖音直播）: https://live.douyin.com/79585015920
+[2026-03-14 00:05:59] [log] 已选择 FFmpeg: ffmpeg（来源: 系统 PATH，版本: 8.0.1）
+[2026-03-14 00:05:59] [log] 正在解析抖音直播页，获取真实流地址...
+[2026-03-14 00:06:01] [log] 抖音流地址解析成功，开始启动录制...
+[2026-03-14 00:06:01] [started] 已开始录制（抖音直播），正在写入本地文件。FFmpeg: ffmpeg (8.0.1)
+[2026-03-14 00:06:01] [progress] 录制中：文件 0 B，磁盘剩余 108.84 GB。
+[2026-03-14 00:06:02] [log] Input #0, flv, from 'https://pull-q3.douyincdn.com/stage/stream-407242103560078140_or4.flv?arch_hrchy=h1&auth_key=1774020960-0-0-1cca5274182801a148856eee3d9197a5&exp_hrchy=h1&major_anchor_level=common&t_id=037-20260314000559E89642EDBF9FAF6ACCA3-bJN5MA&unique_id=stream-407242103560078140_828_flv_or4&_session_id=037-20260314000559E89642EDBF9FAF6ACCA3-bJN5MA.1773417960499.38463&rsi=1&abr_pts=-800':
+[2026-03-14 00:06:02] [log] Metadata:
+[2026-03-14 00:06:02] [log] displayWidth    : 1088
+[2026-03-14 00:06:02] [log] displayHeight   : 1920
+[2026-03-14 00:06:02] [log] fps             : 22
+[2026-03-14 00:06:02] [log] profile         :
+[2026-03-14 00:06:02] [log] level           :
+[2026-03-14 00:06:02] [log] videocodecreal  : 0
+[2026-03-14 00:06:02] [log] cdn_ip          : 61.156.12.32
+[2026-03-14 00:06:02] [log] Server          : Tengine
+[2026-03-14 00:06:02] [log] interval        : 2
+[2026-03-14 00:06:02] [log] Encoder         : bytedmediasdkios:eSLtPoIZmSzwqcy7mXRWgiq6ebXC1bvaQFXTDbxpDF5LI071FlWywOsna6WZX4AyGh1p7RwDlTu7HpDzdKamifQ118mEitDDZoosw/4z9NQU13Lyvhx2ES2F6RFeBukc
+[2026-03-14 00:06:02] [log] default_bitrate : 2092
+[2026-03-14 00:06:02] [log] hit_node_optimize: 1
+[2026-03-14 00:06:02] [log] is_hardware_encode: 1
+[2026-03-14 00:06:02] [log] max_bitrate     : 3180
+[2026-03-14 00:06:02] [log] min_bitrate     : 836
+[2026-03-14 00:06:02] [log] model           : iPhone17,2
+[2026-03-14 00:06:02] [log] os_version      : 26.2
+[2026-03-14 00:06:02] [log] platform        : iOS
+[2026-03-14 00:06:02] [log] push_protocol   : rtmps
+[2026-03-14 00:06:02] [log] qId             : {"enableGetFrameQP":true,"ios17_fix_low_bitrate":true,"fixiOSHighBitrateIssue":true,"ByteAudioPlugin":true,"ios_denoise_v4_anchor_level_3":true,"BlackFrameOptimization":true,"fix_ios_crash_oom_v1":true}
+[2026-03-14 00:06:02] [log] sdk_version     : 20.3.0.15-aweme
+[2026-03-14 00:06:02] [log] signResult      : {"frametype":"1","lid":"712198790","signversion":"1.0","signinfo":"42807892742c26dec47d9bf3451365faf137464848fed83bc92b2d1c009f2274f6640392ca57bde6880bb3bc1a58deb1f0fcb8ee705470f8bc515c3dc1b22f67288946edf04a1d9240ffdeb83db344e7316df59533c659564341f929d6b0
+[2026-03-14 00:06:02] [log] start_time      : 1773412963208
+[2026-03-14 00:06:02] [log] ali_dyn_vcodec  : 14:h266
+[2026-03-14 00:06:02] [log] Duration: 00:00:00.00, start: 5064.176000, bitrate: N/A
+[2026-03-14 00:06:02] [log] Stream #0:0: Audio: aac (LC), 44100 Hz, stereo, fltp, 191 kb/s, start 5064.176000
+[2026-03-14 00:06:02] [log] Stream #0:1: Video: h264 (High), yuv420p(progressive), 1088x1920, 2249 kb/s, 22 fps, 22 tbr, 1k tbn, start 5064.196000
+[2026-03-14 00:06:02] [log] Stream mapping:
+[2026-03-14 00:06:02] [log] Stream #0:1 -> #0:0 (copy)
+[2026-03-14 00:06:02] [log] Stream #0:0 -> #0:1 (copy)
+[2026-03-14 00:06:02] [log] Output #0, matroska, to '/Users/zhileili/Movies/live-20260314-000601.mkv':
+[2026-03-14 00:06:02] [log] Metadata:
+[2026-03-14 00:06:02] [log] displayWidth    : 1088
+[2026-03-14 00:06:02] [log] displayHeight   : 1920
+[2026-03-14 00:06:02] [log] fps             : 22
+[2026-03-14 00:06:02] [log] profile         :
+[2026-03-14 00:06:02] [log] level           :
+[2026-03-14 00:06:02] [log] videocodecreal  : 0
+[2026-03-14 00:06:02] [log] cdn_ip          : 61.156.12.32
+[2026-03-14 00:06:02] [log] Server          : Tengine
+[2026-03-14 00:06:02] [log] interval        : 2
+[2026-03-14 00:06:02] [log] ali_dyn_vcodec  : 14:h266
+[2026-03-14 00:06:02] [log] default_bitrate : 2092
+[2026-03-14 00:06:02] [log] hit_node_optimize: 1
+[2026-03-14 00:06:02] [log] is_hardware_encode: 1
+[2026-03-14 00:06:02] [log] max_bitrate     : 3180
+[2026-03-14 00:06:02] [log] min_bitrate     : 836
+[2026-03-14 00:06:02] [log] model           : iPhone17,2
+[2026-03-14 00:06:02] [log] os_version      : 26.2
+[2026-03-14 00:06:02] [log] platform        : iOS
+[2026-03-14 00:06:02] [log] push_protocol   : rtmps
+[2026-03-14 00:06:02] [log] qId             : {"enableGetFrameQP":true,"ios17_fix_low_bitrate":true,"fixiOSHighBitrateIssue":true,"ByteAudioPlugin":true,"ios_denoise_v4_anchor_level_3":true,"BlackFrameOptimization":true,"fix_ios_crash_oom_v1":true}
+[2026-03-14 00:06:02] [log] sdk_version     : 20.3.0.15-aweme
+[2026-03-14 00:06:02] [log] signResult      : {"frametype":"1","lid":"712198790","signversion":"1.0","signinfo":"42807892742c26dec47d9bf3451365faf137464848fed83bc92b2d1c009f2274f6640392ca57bde6880bb3bc1a58deb1f0fcb8ee705470f8bc515c3dc1b22f67288946edf04a1d9240ffdeb83db344e7316df59533c659564341f929d6b0
+[2026-03-14 00:06:02] [log] start_time      : 1773412963208
+[2026-03-14 00:06:02] [log] encoder         : Lavf62.3.100
+[2026-03-14 00:06:02] [log] Stream #0:0: Video: h264 (High) (H264 / 0x34363248), yuv420p(progressive), 1088x1920, q=2-31, 2249 kb/s, 22 fps, 22 tbr, 1k tbn
+[2026-03-14 00:06:02] [log] Stream #0:1: Audio: aac (LC) ([255][0][0][0] / 0x00FF), 44100 Hz, stereo, fltp, 191 kb/s
+[2026-03-14 00:06:02] [log] Press [q] to stop, [?] for help
+[2026-03-14 00:06:06] [progress] 录制中：文件 2.00 MB，磁盘剩余 108.84 GB。
+[2026-03-14 00:06:11] [progress] 录制中：文件 3.75 MB，磁盘剩余 108.83 GB。
+[2026-03-14 00:06:16] [progress] 录制中：文件 5.75 MB，磁盘剩余 108.83 GB。
+[2026-03-14 00:06:21] [progress] 录制中：文件 7.25 MB，磁盘剩余 108.83 GB。
+[2026-03-14 00:06:26] [progress] 录制中：文件 9.50 MB，磁盘剩余 108.83 GB。
+[2026-03-14 00:06:31] [progress] 录制中：文件 11.50 MB，磁盘剩余 108.82 GB。
+[2026-03-14 00:06:36] [progress] 录制中：文件 13.00 MB，磁盘剩余 108.82 GB。
+[2026-03-14 00:06:41] [progress] 录制中：文件 14.75 MB，磁盘剩余 108.82 GB。
+[2026-03-14 00:06:46] [progress] 录制中：文件 16.75 MB，磁盘剩余 108.82 GB。
+[2026-03-14 00:06:51] [progress] 录制中：文件 18.00 MB，磁盘剩余 108.82 GB。
+[2026-03-14 00:06:56] [progress] 录制中：文件 20.00 MB，磁盘剩余 108.82 GB。
+[2026-03-14 00:07:01] [progress] 录制中：文件 22.00 MB，磁盘剩余 108.81 GB。
+[2026-03-14 00:07:03] [ui] 用户请求停止录制
+[2026-03-14 00:07:03] [log] [q] command received. Exiting.
+[2026-03-14 00:07:03] [log] [out#0/matroska @ 0xc16c24180] video:22643KiB audio:1182KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 0.136301%
+[2026-03-14 00:07:03] [stopped] 已停止录制，文件保存成功。
+[2026-03-14 00:07:03] [ui] 正在停止录制...
+[2026-03-14 00:07:54] [ui] 应用已就绪，默认使用通用直播流模式。
+[2026-03-14 00:07:59] [ui] 已切换到抖音直播模式

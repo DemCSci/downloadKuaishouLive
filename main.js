@@ -440,6 +440,14 @@ function selectPreferredStreamUrl(streamUrls) {
   return [...streamUrls].sort((a, b) => scoreStreamUrl(b) - scoreStreamUrl(a))[0];
 }
 
+function isSessionInvalidatedMessage(message) {
+  if (!message || typeof message !== 'string') {
+    return false;
+  }
+
+  return message.toLowerCase().includes('session has been invalidated');
+}
+
 function getLocalOverrideFfmpegPaths() {
   const binaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
   const candidates = [];
@@ -721,7 +729,7 @@ async function resolveDouyinStreamUrl(pageUrl, timeoutMs = 25000) {
     let done = false;
     let timeoutId = null;
     const streamCandidates = new Set();
-    const partition = `douyin-resolver-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const partition = 'persist:jiuyi-douyin-resolver';
     let resolverWindow = null;
     let resolverSession = null;
 
@@ -744,14 +752,12 @@ async function resolveDouyinStreamUrl(pageUrl, timeoutMs = 25000) {
     };
 
     const onBeforeRequest = (details, callback) => {
+      let preferred = '';
       try {
         const streamUrl = extractPotentialStreamUrlFromRequest(details.url);
         if (streamUrl) {
           streamCandidates.add(streamUrl);
-          const preferred = selectPreferredStreamUrl([...streamCandidates]);
-          if (preferred) {
-            finishResolve(preferred);
-          }
+          preferred = selectPreferredStreamUrl([...streamCandidates]);
         }
       } catch (error) {
         sendRecordingEvent('log', {
@@ -759,6 +765,11 @@ async function resolveDouyinStreamUrl(pageUrl, timeoutMs = 25000) {
         });
       } finally {
         callback({ cancel: false });
+        if (preferred) {
+          setImmediate(() => {
+            finishResolve(preferred);
+          });
+        }
       }
     };
 
@@ -779,6 +790,9 @@ async function resolveDouyinStreamUrl(pageUrl, timeoutMs = 25000) {
       if (resolverWindow && !resolverWindow.isDestroyed()) {
         resolverWindow.destroy();
       }
+
+      resolverSession = null;
+      resolverWindow = null;
     };
 
     try {
@@ -806,6 +820,12 @@ async function resolveDouyinStreamUrl(pageUrl, timeoutMs = 25000) {
         if (errorCode === -3) {
           return;
         }
+
+        if (isSessionInvalidatedMessage(errorDescription)) {
+          finishReject('抖音解析会话已失效');
+          return;
+        }
+
         finishReject(`抖音页面加载失败: ${errorDescription} (${errorCode})`);
       });
 
@@ -828,12 +848,42 @@ async function resolveDouyinStreamUrl(pageUrl, timeoutMs = 25000) {
       }, timeoutMs);
 
       resolverWindow.loadURL(pageUrl).catch((error) => {
+        if (isSessionInvalidatedMessage(error.message)) {
+          finishReject('抖音解析会话已失效');
+          return;
+        }
         finishReject(`抖音页面加载失败: ${error.message}`);
       });
     } catch (error) {
       finishReject(`抖音页面解析初始化失败: ${error.message}`);
     }
   });
+}
+
+async function resolveDouyinStreamUrlWithRetry(pageUrl, timeoutMs = 25000, maxRetry = 1) {
+  let attempt = 0;
+  let lastError = null;
+
+  while (attempt <= maxRetry) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      return await resolveDouyinStreamUrl(pageUrl, timeoutMs);
+    } catch (error) {
+      lastError = error;
+      const message = error && error.message ? error.message : String(error || '');
+      if (!isSessionInvalidatedMessage(message) || attempt >= maxRetry) {
+        throw error;
+      }
+
+      sendRecordingEvent('log', {
+        message: `抖音解析会话失效，正在自动重试（${attempt + 1}/${maxRetry}）...`,
+      });
+    }
+
+    attempt += 1;
+  }
+
+  throw lastError || new Error('抖音流地址解析失败');
 }
 
 function processStderrChunk(chunk) {
@@ -988,7 +1038,7 @@ async function startRecording(startPayload) {
     sendRecordingEvent('log', {
       message: '正在解析抖音直播页，获取真实流地址...',
     });
-    inputUrl = await resolveDouyinStreamUrl(url);
+    inputUrl = await resolveDouyinStreamUrlWithRetry(url);
     sendRecordingEvent('log', {
       message: '抖音流地址解析成功，开始启动录制...',
     });
