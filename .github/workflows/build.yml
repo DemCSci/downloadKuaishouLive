@@ -35,7 +35,7 @@ jobs:
     runs-on: windows-latest
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      FFMPEG_PACKAGE_URL: "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.1.1-full_build.7z"
+      FFMPEG_PACKAGE_URL: "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.1.1-full_build-shared.7z"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,8 +47,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $archivePath = Join-Path $env:RUNNER_TEMP "ffmpeg-7.1.1-full_build.7z"
-          $extractDir = Join-Path $env:RUNNER_TEMP "ffmpeg-7.1.1-full_build"
+          $archivePath = Join-Path $env:RUNNER_TEMP "ffmpeg-7.1.1-full_build-shared.7z"
+          $extractDir = Join-Path $env:RUNNER_TEMP "ffmpeg-7.1.1-full_build-shared"
           $targetDir = Join-Path $env:GITHUB_WORKSPACE "ffmpeg-custom\\win32-x64"
           $targetFile = Join-Path $targetDir "ffmpeg.exe"
 
@@ -61,7 +61,7 @@ jobs:
           }
           7z x $archivePath "-o$extractDir" -y | Out-Null
 
-          $expectedFfmpeg = Join-Path $extractDir "ffmpeg-7.1.1-full_build\\bin\\ffmpeg.exe"
+          $expectedFfmpeg = Join-Path $extractDir "ffmpeg-7.1.1-full_build-shared\\bin\\ffmpeg.exe"
           if (Test-Path $expectedFfmpeg) {
             $ffmpegExe = Get-Item $expectedFfmpeg
           } else {
@@ -76,11 +76,17 @@ jobs:
 
           Write-Host "Resolved ffmpeg source: $($ffmpegExe.FullName)"
           New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
-          Copy-Item -Path $ffmpegExe.FullName -Destination $targetFile -Force
+          $sourceBinDir = Split-Path -Parent $ffmpegExe.FullName
+          Copy-Item -Path (Join-Path $sourceBinDir "ffmpeg.exe") -Destination $targetFile -Force
+          Get-ChildItem -Path $sourceBinDir -Filter "*.dll" | ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination (Join-Path $targetDir $_.Name) -Force
+          }
           Write-Host "Prepared default ffmpeg: $targetFile"
           if (-not (Test-Path $targetFile)) {
             throw "Copied ffmpeg.exe not found at target path."
           }
+          $dllCount = (Get-ChildItem -Path $targetDir -Filter "*.dll").Count
+          Write-Host "Bundled ffmpeg dll count: $dllCount"
           $ffVersionLine = & $targetFile -version | Select-Object -First 1
           Write-Host "Bundled ffmpeg version: $ffVersionLine"
 

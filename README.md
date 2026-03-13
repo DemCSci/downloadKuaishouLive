@@ -56,7 +56,7 @@ npm run dist:linux:cli
 
 说明：打包时会自动把 FFmpeg 一并带入安装包，目标机器通常无需额外安装 FFmpeg。
 说明：本地 npm 打包脚本显式使用 `--publish never`，只构建，不直接发布。
-说明：GitHub Actions 的 Windows 构建会先下载并解压 `ffmpeg-7.1.1-full_build.7z`，默认打包到 `ffmpeg-custom/win32-x64/ffmpeg.exe`。
+说明：GitHub Actions 的 Windows 构建会先下载并解压 `ffmpeg-7.1.1-full_build-shared.7z`，默认打包到 `ffmpeg-custom/win32-x64/`（含 `ffmpeg.exe` 与所需 DLL）。
 
 注意：
 

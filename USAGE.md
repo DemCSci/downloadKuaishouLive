@@ -79,7 +79,7 @@ npm run dist:win:all
 
 - Windows 的 `*-unpacked` 目录可直接复制到目标机运行（需完整目录，不可只拷贝 exe）。
 - 项目已配置打包内置 ffmpeg，目标机通常无需额外安装 ffmpeg。
-- GitHub Actions 的 Windows 打包会自动下载并解压 `ffmpeg-7.1.1-full_build.7z`，默认打入 `ffmpeg-custom/win32-x64/ffmpeg.exe`。
+- GitHub Actions 的 Windows 打包会自动下载并解压 `ffmpeg-7.1.1-full_build-shared.7z`，默认打入 `ffmpeg-custom/win32-x64/`（包含 `ffmpeg.exe` 与所需 DLL）。
 - Windows 运行时优先使用内置默认 FFmpeg，也可在界面手动选择 `ffmpeg.exe` 覆盖。
 
 ---

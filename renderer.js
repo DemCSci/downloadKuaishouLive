@@ -184,7 +184,7 @@ function syncButtons() {
   stopBtn.disabled = !isRecording;
   openBtn.disabled = !currentOutputPath;
   chooseDirBtn.disabled = isRecording;
-  chooseFfmpegBtn.disabled = isRecording || !requiresManualFfmpeg;
+  chooseFfmpegBtn.disabled = !requiresManualFfmpeg;
   tabGenericBtn.disabled = isRecording;
   tabDouyinBtn.disabled = isRecording;
 }
@@ -315,6 +315,9 @@ chooseFfmpegBtn.addEventListener('click', async () => {
     appendLog(
       `FFmpeg 已设置: ${result.ffmpegPath}${result.versionRaw ? ` (版本 ${result.versionRaw})` : ''}`
     );
+    if (isRecording) {
+      appendLog('当前录制任务将继续使用旧 FFmpeg，新配置会在下次开始录制时生效。');
+    }
     return;
   }
 

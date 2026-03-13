@@ -1141,12 +1141,15 @@ ipcMain.handle('recording:choose-output-dir', async () => {
 
 ipcMain.handle('recording:choose-ffmpeg', async () => {
   const currentPath = getConfiguredFfmpegPath();
+  const defaultDialogPath = currentPath
+    ? path.dirname(currentPath)
+    : app.getPath('home');
   const filters = process.platform === 'win32'
     ? [{ name: 'FFmpeg 可执行文件', extensions: ['exe'] }]
     : undefined;
   const result = await dialog.showOpenDialog({
     title: '选择 FFmpeg 可执行文件',
-    defaultPath: currentPath || app.getPath('home'),
+    defaultPath: defaultDialogPath,
     properties: ['openFile'],
     filters,
   });

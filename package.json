@@ -45,6 +45,7 @@
         "filter": [
           "**/ffmpeg",
           "**/ffmpeg.exe",
+          "**/*.dll",
           "**/*.txt"
         ]
       },
