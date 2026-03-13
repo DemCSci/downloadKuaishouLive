@@ -11,17 +11,63 @@
       <section class="card">
         <h1>jiuyi</h1>
         <p class="sub-title">
-          输入直播流地址，点击开始即可保存到本地视频目录（默认 MKV）。
+          选择录制来源并输入链接，点击开始即可保存到本地视频目录（默认 MKV）。
         </p>
 
-        <label for="streamUrl" class="input-label">直播链接</label>
-        <div class="input-wrap">
-          <input
-            id="streamUrl"
-            type="url"
-            spellcheck="false"
-            placeholder="例如：https://hw-origin.pull.yximgs.com/xxx.flv?..."
-          />
+        <div class="tab-switch" role="tablist" aria-label="录制来源">
+          <button
+            id="tabGenericBtn"
+            class="tab-btn active"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="panelGeneric"
+          >
+            通用直播流
+          </button>
+          <button
+            id="tabDouyinBtn"
+            class="tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panelDouyin"
+          >
+            抖音直播
+          </button>
+        </div>
+
+        <div id="panelGeneric" class="tab-panel active" role="tabpanel" aria-labelledby="tabGenericBtn">
+          <label for="streamUrl" class="input-label">直播流链接</label>
+          <div class="input-wrap">
+            <input
+              id="streamUrl"
+              type="url"
+              spellcheck="false"
+              placeholder="例如：https://hw-origin.pull.yximgs.com/xxx.flv?..."
+            />
+          </div>
+        </div>
+
+        <div
+          id="panelDouyin"
+          class="tab-panel"
+          role="tabpanel"
+          aria-labelledby="tabDouyinBtn"
+          hidden
+        >
+          <label for="douyinPageUrl" class="input-label">抖音直播页链接</label>
+          <div class="input-wrap">
+            <input
+              id="douyinPageUrl"
+              type="url"
+              spellcheck="false"
+              placeholder="例如：https://live.douyin.com/43464444647"
+            />
+          </div>
+          <p class="tab-hint">
+            输入 <code>live.douyin.com</code> 页面地址，程序会自动解析真实拉流地址后再启动录制。
+          </p>
         </div>
 
         <div class="dir-row">

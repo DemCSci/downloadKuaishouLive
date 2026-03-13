@@ -147,6 +147,99 @@ function rememberLog(line) {
   }
 }
 
+function normalizeStartPayload(startPayload) {
+  if (typeof startPayload === 'string') {
+    return {
+      mode: 'generic',
+      url: startPayload.trim(),
+    };
+  }
+
+  if (!startPayload || typeof startPayload !== 'object') {
+    return {
+      mode: 'generic',
+      url: '',
+    };
+  }
+
+  const mode = startPayload.mode === 'douyin' ? 'douyin' : 'generic';
+  const url = typeof startPayload.url === 'string' ? startPayload.url.trim() : '';
+
+  return {
+    mode,
+    url,
+  };
+}
+
+function isDouyinLiveUrl(inputUrl) {
+  try {
+    const parsed = new URL(inputUrl);
+    return parsed.hostname === 'live.douyin.com' || parsed.hostname.endsWith('.douyin.com');
+  } catch {
+    return false;
+  }
+}
+
+function extractPotentialStreamUrlFromRequest(requestUrl) {
+  if (!requestUrl || typeof requestUrl !== 'string') {
+    return '';
+  }
+
+  const lower = requestUrl.toLowerCase();
+  if (!lower.includes('.flv') && !lower.includes('.m3u8')) {
+    return '';
+  }
+
+  if (lower.includes('uuu_265.mp4')) {
+    return '';
+  }
+
+  return requestUrl;
+}
+
+function scoreStreamUrl(streamUrl) {
+  const lower = streamUrl.toLowerCase();
+  let score = 0;
+
+  if (lower.includes('.flv')) {
+    score += 50;
+  }
+
+  if (lower.includes('.m3u8')) {
+    score += 40;
+  }
+
+  if (lower.includes('pull-flv')) {
+    score += 20;
+  }
+
+  if (lower.includes('pull-hls')) {
+    score += 10;
+  }
+
+  if (lower.includes('douyincdn.com')) {
+    score += 8;
+  }
+
+  if (lower.includes('302_dispatch=true')) {
+    score += 5;
+  }
+
+  if (lower.includes('_or')) {
+    score += 1;
+  }
+
+  return score;
+}
+
+function selectPreferredStreamUrl(streamUrls) {
+  if (!Array.isArray(streamUrls) || streamUrls.length === 0) {
+    return '';
+  }
+
+  return [...streamUrls].sort((a, b) => scoreStreamUrl(b) - scoreStreamUrl(a))[0];
+}
+
 function getBundledFfmpegPath() {
   const binaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
   const byPlatform = process.platform === 'win32'
@@ -227,6 +320,130 @@ function checkFfmpegAvailable() {
 
       reject(new Error(`ffmpeg 检查失败，退出码: ${code}`));
     });
+  });
+}
+
+async function resolveDouyinStreamUrl(pageUrl, timeoutMs = 25000) {
+  if (!isDouyinLiveUrl(pageUrl)) {
+    throw new Error('请输入有效的抖音直播间页面链接（live.douyin.com）');
+  }
+
+  return new Promise((resolve, reject) => {
+    let done = false;
+    let timeoutId = null;
+    const streamCandidates = new Set();
+    const partition = `douyin-resolver-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    let resolverWindow = null;
+    let resolverSession = null;
+
+    const finishResolve = (streamUrl) => {
+      if (done) {
+        return;
+      }
+      done = true;
+      cleanup();
+      resolve(streamUrl);
+    };
+
+    const finishReject = (message) => {
+      if (done) {
+        return;
+      }
+      done = true;
+      cleanup();
+      reject(new Error(message));
+    };
+
+    const onBeforeRequest = (details, callback) => {
+      try {
+        const streamUrl = extractPotentialStreamUrlFromRequest(details.url);
+        if (streamUrl) {
+          streamCandidates.add(streamUrl);
+          const preferred = selectPreferredStreamUrl([...streamCandidates]);
+          if (preferred) {
+            finishResolve(preferred);
+          }
+        }
+      } catch (error) {
+        sendRecordingEvent('log', {
+          message: `抖音流地址监听异常: ${error.message}`,
+        });
+      } finally {
+        callback({ cancel: false });
+      }
+    };
+
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+
+      if (resolverSession) {
+        try {
+          resolverSession.webRequest.onBeforeRequest(null);
+        } catch {
+          // ignore
+        }
+      }
+
+      if (resolverWindow && !resolverWindow.isDestroyed()) {
+        resolverWindow.destroy();
+      }
+    };
+
+    try {
+      resolverWindow = new BrowserWindow({
+        show: false,
+        width: 1200,
+        height: 800,
+        webPreferences: {
+          partition,
+          contextIsolation: true,
+          nodeIntegration: false,
+          backgroundThrottling: false,
+        },
+      });
+
+      resolverSession = resolverWindow.webContents.session;
+      resolverSession.webRequest.onBeforeRequest(
+        {
+          urls: ['*://*/*'],
+        },
+        onBeforeRequest
+      );
+
+      resolverWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+        if (errorCode === -3) {
+          return;
+        }
+        finishReject(`抖音页面加载失败: ${errorDescription} (${errorCode})`);
+      });
+
+      resolverWindow.webContents.on('render-process-gone', () => {
+        finishReject('抖音页面解析失败: 渲染进程异常退出');
+      });
+
+      resolverWindow.webContents.setUserAgent(
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+      );
+
+      timeoutId = setTimeout(() => {
+        const fallback = selectPreferredStreamUrl([...streamCandidates]);
+        if (fallback) {
+          finishResolve(fallback);
+          return;
+        }
+
+        finishReject('未能解析到抖音直播流地址，请确认直播间正在开播后重试');
+      }, timeoutMs);
+
+      resolverWindow.loadURL(pageUrl).catch((error) => {
+        finishReject(`抖音页面加载失败: ${error.message}`);
+      });
+    } catch (error) {
+      finishReject(`抖音页面解析初始化失败: ${error.message}`);
+    }
   });
 }
 
@@ -360,9 +577,11 @@ function startProgressTicker() {
   });
 }
 
-async function startRecording(streamUrl) {
-  if (!streamUrl) {
-    throw new Error('请输入直播链接');
+async function startRecording(startPayload) {
+  const { mode, url } = normalizeStartPayload(startPayload);
+
+  if (!url) {
+    throw new Error(mode === 'douyin' ? '请输入抖音直播链接' : '请输入直播链接');
   }
 
   if (ffmpegProcess) {
@@ -370,6 +589,17 @@ async function startRecording(streamUrl) {
   }
 
   const ffmpegBinary = await checkFfmpegAvailable();
+  let inputUrl = url;
+
+  if (mode === 'douyin') {
+    sendRecordingEvent('log', {
+      message: '正在解析抖音直播页，获取真实流地址...',
+    });
+    inputUrl = await resolveDouyinStreamUrl(url);
+    sendRecordingEvent('log', {
+      message: '抖音流地址解析成功，开始启动录制...',
+    });
+  }
 
   currentOutputPath = createOutputPath();
   stopRequested = false;
@@ -384,7 +614,7 @@ async function startRecording(streamUrl) {
     '-loglevel',
     'info',
     '-i',
-    streamUrl,
+    inputUrl,
     '-c',
     'copy',
     '-f',
@@ -398,7 +628,7 @@ async function startRecording(streamUrl) {
 
   sendRecordingEvent('started', {
     outputPath: currentOutputPath,
-    message: `已开始录制，正在写入本地文件。FFmpeg: ${ffmpegBinary}`,
+    message: `已开始录制（${mode === 'douyin' ? '抖音直播' : '通用直播流'}），正在写入本地文件。FFmpeg: ${ffmpegBinary}`,
   });
   startProgressTicker();
 
@@ -537,9 +767,9 @@ function createWindow() {
   mainWindow.loadFile('index.html');
 }
 
-ipcMain.handle('recording:start', async (_event, streamUrl) => {
+ipcMain.handle('recording:start', async (_event, startPayload) => {
   try {
-    const { outputPath } = await startRecording(streamUrl);
+    const { outputPath } = await startRecording(startPayload);
     return {
       ok: true,
       outputPath,

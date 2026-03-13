@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('recorderApi', {
-  start: (url) => ipcRenderer.invoke('recording:start', url),
+  start: (payload) => ipcRenderer.invoke('recording:start', payload),
   stop: () => ipcRenderer.invoke('recording:stop'),
   openFolder: (outputPath) => ipcRenderer.invoke('recording:open-folder', outputPath),
   getSettings: () => ipcRenderer.invoke('recording:get-settings'),

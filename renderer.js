@@ -1,4 +1,10 @@
 const streamUrlInput = document.getElementById('streamUrl');
+const douyinPageUrlInput = document.getElementById('douyinPageUrl');
+const tabGenericBtn = document.getElementById('tabGenericBtn');
+const tabDouyinBtn = document.getElementById('tabDouyinBtn');
+const panelGeneric = document.getElementById('panelGeneric');
+const panelDouyin = document.getElementById('panelDouyin');
+
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const openBtn = document.getElementById('openBtn');
@@ -11,13 +17,24 @@ const fileSizeText = document.getElementById('fileSize');
 const diskFreeText = document.getElementById('diskFree');
 const logsEl = document.getElementById('logs');
 
-const defaultUrl =
+const defaultGenericUrl =
   'https://hw-origin.pull.yximgs.com/gifshow/_JxvDTzBYCo_GameAvcHdL0.flv?hwTime=6999d048&hwSecret=1fa93d3912eff5a9d2a5d589986e5bba&tsc=origin&oidc=edgeWm&sidc=204180&no_script=1&ss=s20&tfc_buyer=0&kabr_spts=-5000';
 
-streamUrlInput.value = defaultUrl;
+const defaultDouyinUrl =
+  'https://live.douyin.com/43464444647?anchor_id=74996910208&category_name=all&is_vs=0&page_type=main_category_page&vs_ep_group_id=&vs_episode_id=&vs_episode_stage=&vs_season_id=';
 
+if (streamUrlInput && !streamUrlInput.value.trim()) {
+  streamUrlInput.value = defaultGenericUrl;
+}
+
+if (douyinPageUrlInput && !douyinPageUrlInput.value.trim()) {
+  douyinPageUrlInput.value = defaultDouyinUrl;
+}
+
+let activeMode = 'generic';
 let currentOutputPath = '';
 let isRecording = false;
+
 const MAX_LOG_LINES = 600;
 const MAX_LOG_CHARS = 80000;
 const MAX_SINGLE_LOG_LENGTH = 1200;
@@ -67,6 +84,10 @@ function formatBytes(bytes) {
   return `${value.toFixed(fractionDigits)} ${units[unitIndex]}`;
 }
 
+function getModeLabel(mode) {
+  return mode === 'douyin' ? '抖音直播' : '通用直播流';
+}
+
 function setOutputDirectory(directoryPath) {
   outputDirText.textContent = directoryPath
     ? `保存目录: ${directoryPath}`
@@ -94,11 +115,54 @@ function setStatus(tag, text, mode = 'idle') {
   }
 }
 
+function applyActiveModeUI() {
+  const isDouyin = activeMode === 'douyin';
+
+  tabGenericBtn.classList.toggle('active', !isDouyin);
+  tabDouyinBtn.classList.toggle('active', isDouyin);
+
+  tabGenericBtn.setAttribute('aria-selected', String(!isDouyin));
+  tabDouyinBtn.setAttribute('aria-selected', String(isDouyin));
+
+  panelGeneric.classList.toggle('active', !isDouyin);
+  panelDouyin.classList.toggle('active', isDouyin);
+
+  panelGeneric.hidden = isDouyin;
+  panelDouyin.hidden = !isDouyin;
+}
+
+function switchMode(nextMode) {
+  if (nextMode !== 'generic' && nextMode !== 'douyin') {
+    return;
+  }
+
+  if (isRecording) {
+    appendLog('录制进行中，无法切换来源标签。');
+    return;
+  }
+
+  if (activeMode === nextMode) {
+    return;
+  }
+
+  activeMode = nextMode;
+  applyActiveModeUI();
+  setStatus('空闲中', `当前来源: ${getModeLabel(activeMode)}`);
+  appendLog(`已切换到${getModeLabel(activeMode)}模式`);
+}
+
+function getActiveInputValue() {
+  const input = activeMode === 'douyin' ? douyinPageUrlInput : streamUrlInput;
+  return input ? input.value.trim() : '';
+}
+
 function syncButtons() {
   startBtn.disabled = isRecording;
   stopBtn.disabled = !isRecording;
   openBtn.disabled = !currentOutputPath;
   chooseDirBtn.disabled = isRecording;
+  tabGenericBtn.disabled = isRecording;
+  tabDouyinBtn.disabled = isRecording;
 }
 
 async function loadSettings() {
@@ -113,18 +177,23 @@ async function loadSettings() {
 }
 
 startBtn.addEventListener('click', async () => {
-  const url = streamUrlInput.value.trim();
+  const url = getActiveInputValue();
   if (!url) {
-    setStatus('错误', '请先输入直播链接', 'error');
-    appendLog('请先输入直播链接');
+    const hint = activeMode === 'douyin' ? '请先输入抖音直播页链接' : '请先输入直播流链接';
+    setStatus('错误', hint, 'error');
+    appendLog(hint);
     return;
   }
 
   startBtn.disabled = true;
   setStatus('启动中', '正在启动 ffmpeg...', 'running');
-  appendLog(`开始录制: ${url}`);
+  appendLog(`开始录制（${getModeLabel(activeMode)}）: ${url}`);
 
-  const result = await window.recorderApi.start(url);
+  const result = await window.recorderApi.start({
+    mode: activeMode,
+    url,
+  });
+
   if (!result.ok) {
     isRecording = false;
     syncButtons();
@@ -140,7 +209,7 @@ startBtn.addEventListener('click', async () => {
     : '';
   updateMetrics(0, NaN);
 
-  setStatus('录制中', '正在保存直播流...', 'running');
+  setStatus('录制中', `正在保存${getModeLabel(activeMode)}内容...`, 'running');
   syncButtons();
 });
 
@@ -199,6 +268,21 @@ chooseDirBtn.addEventListener('click', async () => {
   setStatus('失败', result.message || '选择保存目录失败', 'error');
 });
 
+[streamUrlInput, douyinPageUrlInput].forEach((input) => {
+  if (!input) {
+    return;
+  }
+
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !isRecording) {
+      startBtn.click();
+    }
+  });
+});
+
+tabGenericBtn.addEventListener('click', () => switchMode('generic'));
+tabDouyinBtn.addEventListener('click', () => switchMode('douyin'));
+
 window.recorderApi.onEvent((event) => {
   if (!event || !event.type) {
     return;
@@ -216,7 +300,7 @@ window.recorderApi.onEvent((event) => {
   switch (event.type) {
     case 'started': {
       isRecording = true;
-      setStatus('录制中', 'FFmpeg 已启动，正在拉流保存', 'running');
+      setStatus('录制中', event.message || 'FFmpeg 已启动，正在拉流保存', 'running');
       break;
     }
     case 'log': {
@@ -255,7 +339,8 @@ window.recorderApi.onEvent((event) => {
   syncButtons();
 });
 
+applyActiveModeUI();
 syncButtons();
 updateMetrics(0, NaN);
 loadSettings();
-appendLog('应用已就绪，等待输入直播链接。');
+appendLog('应用已就绪，默认使用通用直播流模式。');

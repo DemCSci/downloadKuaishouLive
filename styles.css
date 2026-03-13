@@ -63,6 +63,61 @@ h1 {
   font-size: 14px;
 }
 
+.tab-switch {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.tab-btn {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #edf4ef;
+  color: #2b5640;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.tab-btn.active {
+  background: #d8ece0;
+  border-color: rgba(47, 111, 78, 0.55);
+  color: #1f4f37;
+}
+
+.tab-btn:hover:not(:disabled) {
+  background: #e1ede5;
+}
+
+.tab-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+.tab-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #4a6656;
+  line-height: 1.4;
+}
+
+.tab-hint code {
+  background: rgba(47, 111, 78, 0.1);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
 .input-label {
   display: inline-block;
   margin-bottom: 8px;
