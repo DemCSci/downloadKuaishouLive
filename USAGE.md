@@ -40,6 +40,7 @@ npm start
 - 选择录制来源（通用直播流 / 抖音直播）
 - 输入对应链接
 - 选择保存目录
+- Windows 默认使用内置 FFmpeg（可选：点击「选择 FFmpeg」手动覆盖）
 - 点击「开始录制 / 停止录制」
 
 ---
@@ -78,10 +79,8 @@ npm run dist:win:all
 
 - Windows 的 `*-unpacked` 目录可直接复制到目标机运行（需完整目录，不可只拷贝 exe）。
 - 项目已配置打包内置 ffmpeg，目标机通常无需额外安装 ffmpeg。
-- `dist:win*` 会在打包前自动下载较新 FFmpeg（二进制）到 `ffmpeg-custom/` 后再打包（默认 `x64=b6.1.1`，`ia32=b6.0` 兼容回退）。
-- 可通过环境变量覆盖下载配置：
-  - `FFMPEG_CUSTOM_RELEASE`（强制所有架构使用同一 release，默认按架构自动选择）
-  - `FFMPEG_CUSTOM_BASE_URL`（默认 `https://cdn.npmmirror.com/binaries/ffmpeg-static`）
+- GitHub Actions 的 Windows 打包会自动下载并解压 `ffmpeg-7.1.1-full_build.7z`，默认打入 `ffmpeg-custom/win32-x64/ffmpeg.exe`。
+- Windows 运行时优先使用内置默认 FFmpeg，也可在界面手动选择 `ffmpeg.exe` 覆盖。
 
 ---
 
@@ -151,14 +150,9 @@ chmod +x ./jiuyi-cli-linux-x64
 
 - 当前 FFmpeg 版本过低，无法解析该直播流编码。
 
-处理方式（任选其一）：
+处理方式：
 
-- 安装新版 FFmpeg，并设置环境变量 `JIUYI_FFMPEG_PATH` 指向 `ffmpeg.exe` 完整路径
-- 将新版 `ffmpeg.exe` 放在 `jiuyi.exe` 同级目录
-
-说明：
-
-- 应用会在启动录制时自动选择可用且版本更高的 FFmpeg，并在日志里输出最终使用路径与版本。
+- 点击界面「选择 FFmpeg」，重新选择较新版本 `ffmpeg.exe`（建议 5.x/6.x/7.x）。
 
 ### 6.3 录制很快停止
 

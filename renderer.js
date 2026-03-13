@@ -9,10 +9,13 @@ const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const openBtn = document.getElementById('openBtn');
 const chooseDirBtn = document.getElementById('chooseDirBtn');
+const chooseFfmpegBtn = document.getElementById('chooseFfmpegBtn');
 const statusTag = document.getElementById('statusTag');
 const statusText = document.getElementById('statusText');
 const outputPathText = document.getElementById('outputPath');
 const outputDirText = document.getElementById('outputDir');
+const ffmpegPathText = document.getElementById('ffmpegPath');
+const ffmpegHint = document.getElementById('ffmpegHint');
 const fileSizeText = document.getElementById('fileSize');
 const diskFreeText = document.getElementById('diskFree');
 const logsEl = document.getElementById('logs');
@@ -34,6 +37,8 @@ if (douyinPageUrlInput && !douyinPageUrlInput.value.trim()) {
 let activeMode = 'generic';
 let currentOutputPath = '';
 let isRecording = false;
+let requiresManualFfmpeg = false;
+let configuredFfmpegPath = '';
 
 const MAX_LOG_LINES = 600;
 const MAX_LOG_CHARS = 80000;
@@ -92,6 +97,24 @@ function setOutputDirectory(directoryPath) {
   outputDirText.textContent = directoryPath
     ? `保存目录: ${directoryPath}`
     : '保存目录: 未设置';
+}
+
+function setFfmpegPathDisplay(ffmpegPath) {
+  configuredFfmpegPath = ffmpegPath || '';
+
+  if (configuredFfmpegPath) {
+    ffmpegPathText.textContent = `FFmpeg: ${configuredFfmpegPath}`;
+    return;
+  }
+
+  ffmpegPathText.textContent = requiresManualFfmpeg
+    ? 'FFmpeg: 未手动选择（将使用内置默认）'
+    : 'FFmpeg: 自动检测';
+}
+
+function setFfmpegSelectorVisible(isVisible) {
+  chooseFfmpegBtn.hidden = !isVisible;
+  ffmpegHint.hidden = !isVisible;
 }
 
 function updateMetrics(fileSize, diskFree) {
@@ -161,6 +184,7 @@ function syncButtons() {
   stopBtn.disabled = !isRecording;
   openBtn.disabled = !currentOutputPath;
   chooseDirBtn.disabled = isRecording;
+  chooseFfmpegBtn.disabled = isRecording || !requiresManualFfmpeg;
   tabGenericBtn.disabled = isRecording;
   tabDouyinBtn.disabled = isRecording;
 }
@@ -173,7 +197,14 @@ async function loadSettings() {
     return;
   }
 
+  requiresManualFfmpeg = Boolean(result.requiresManualFfmpeg);
+  setFfmpegSelectorVisible(requiresManualFfmpeg);
   setOutputDirectory(result.outputDirectory);
+  setFfmpegPathDisplay(result.ffmpegPath || '');
+
+  if (requiresManualFfmpeg && !configuredFfmpegPath) {
+    appendLog('Windows 当前未手动选择 FFmpeg，将优先使用内置默认 FFmpeg。');
+  }
 }
 
 startBtn.addEventListener('click', async () => {
@@ -268,6 +299,37 @@ chooseDirBtn.addEventListener('click', async () => {
   setStatus('失败', result.message || '选择保存目录失败', 'error');
 });
 
+chooseFfmpegBtn.addEventListener('click', async () => {
+  if (!requiresManualFfmpeg) {
+    return;
+  }
+
+  const result = await window.recorderApi.chooseFfmpeg();
+  if (!result) {
+    appendLog('选择 FFmpeg 失败: 未知错误');
+    return;
+  }
+
+  if (result.ok) {
+    setFfmpegPathDisplay(result.ffmpegPath);
+    appendLog(
+      `FFmpeg 已设置: ${result.ffmpegPath}${result.versionRaw ? ` (版本 ${result.versionRaw})` : ''}`
+    );
+    return;
+  }
+
+  if (result.canceled) {
+    return;
+  }
+
+  if (result.ffmpegPath) {
+    setFfmpegPathDisplay(result.ffmpegPath);
+  }
+
+  appendLog(result.message || '选择 FFmpeg 失败');
+  setStatus('失败', result.message || '选择 FFmpeg 失败', 'error');
+});
+
 [streamUrlInput, douyinPageUrlInput].forEach((input) => {
   if (!input) {
     return;
@@ -340,6 +402,8 @@ window.recorderApi.onEvent((event) => {
 });
 
 applyActiveModeUI();
+setFfmpegSelectorVisible(false);
+setFfmpegPathDisplay('');
 syncButtons();
 updateMetrics(0, NaN);
 loadSettings();

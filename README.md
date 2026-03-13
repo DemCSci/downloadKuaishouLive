@@ -56,7 +56,7 @@ npm run dist:linux:cli
 
 说明：打包时会自动把 FFmpeg 一并带入安装包，目标机器通常无需额外安装 FFmpeg。
 说明：本地 npm 打包脚本显式使用 `--publish never`，只构建，不直接发布。
-说明：`dist:win*` 在构建前会自动下载较新 FFmpeg 到 `ffmpeg-custom/` 并随安装包分发（默认 `x64=b6.1.1`，`ia32=b6.0` 兼容回退）。
+说明：GitHub Actions 的 Windows 构建会先下载并解压 `ffmpeg-7.1.1-full_build.7z`，默认打包到 `ffmpeg-custom/win32-x64/ffmpeg.exe`。
 
 注意：
 
@@ -64,9 +64,7 @@ npm run dist:linux:cli
 - Windows 默认按 x64 构建；x86 请使用 `npm run dist:win:x86`。
 - x86 构建脚本会自动拉取 `@ffmpeg-installer/win32-ia32`，确保 x86 包内也自带 ffmpeg。
 - Linux CLI 构建脚本会自动拉取 `@ffmpeg-installer/linux-x64`。
-- 如需切换 FFmpeg 下载源或版本，可在打包前设置：
-  - `FFMPEG_CUSTOM_RELEASE`（强制所有架构使用同一 release，默认按架构自动选择）
-  - `FFMPEG_CUSTOM_BASE_URL`（默认 `https://cdn.npmmirror.com/binaries/ffmpeg-static`）
+- Windows 默认优先使用安装包内置 FFmpeg；你也可以在界面点击「选择 FFmpeg」手动覆盖。
 
 如果你用 GitHub，可以直接用仓库里的工作流同时出 mac 和 win 包：
 
@@ -113,12 +111,13 @@ npm run dist:linux:cli
 1. 选择录制来源：
    - 「通用直播流」：输入 `.flv/.m3u8` 等拉流地址
    - 「抖音直播」：输入 `https://live.douyin.com/...` 页面地址
-2. 点击「开始录制」
-3. 录制中可点击「停止录制」
-4. 录制过程中会每 5 秒输出一次进度日志，包含当前文件大小和磁盘剩余空间
-5. 直播结束时，程序会自动停止并提示「已结束」
-6. 可点击「打开文件位置」打开保存目录
-7. 若磁盘剩余空间低于 10 GB，程序会自动停止录制并弹出告警窗口
+2. Windows 默认使用内置 FFmpeg（可选：点击「选择 FFmpeg」手动指定 `ffmpeg.exe`）
+3. 点击「开始录制」
+4. 录制中可点击「停止录制」
+5. 录制过程中会每 5 秒输出一次进度日志，包含当前文件大小和磁盘剩余空间
+6. 直播结束时，程序会自动停止并提示「已结束」
+7. 可点击「打开文件位置」打开保存目录
+8. 若磁盘剩余空间低于 10 GB，程序会自动停止录制并弹出告警窗口
 
 默认保存位置：系统视频目录（`app.getPath('videos')`），可在界面点击「选择保存目录」修改。
 
@@ -135,6 +134,4 @@ npm run dist:linux:cli
 
 - 某些平台直播链接带签名参数（如 `hwTime`/`hwSecret`）有时效，过期后会录制失败。
 - 请确保你有权保存对应直播内容并遵守平台规则。
-- 若 Windows 日志出现 `Video codec (c) is not implemented`，通常是 FFmpeg 版本过低。建议安装较新 FFmpeg（建议 5.x/6.x/7.x），并通过以下任一方式让应用优先使用：
-  - 设置环境变量 `JIUYI_FFMPEG_PATH` 指向 `ffmpeg.exe` 完整路径
-  - 将新版 `ffmpeg.exe` 放到 `jiuyi.exe` 同级目录（应用会自动检测）
+- 若 Windows 日志出现 `Video codec (c) is not implemented`，通常是 FFmpeg 版本过低。请点击「选择 FFmpeg」重新指定较新版本 `ffmpeg.exe`（建议 5.x/6.x/7.x）。

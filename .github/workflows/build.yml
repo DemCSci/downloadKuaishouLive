@@ -35,6 +35,7 @@ jobs:
     runs-on: windows-latest
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      FFMPEG_PACKAGE_URL: "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.1.1-full_build.7z"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -42,6 +43,47 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Prepare Default FFmpeg (Windows x64)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $archivePath = Join-Path $env:RUNNER_TEMP "ffmpeg-7.1.1-full_build.7z"
+          $extractDir = Join-Path $env:RUNNER_TEMP "ffmpeg-7.1.1-full_build"
+          $targetDir = Join-Path $env:GITHUB_WORKSPACE "ffmpeg-custom\\win32-x64"
+          $targetFile = Join-Path $targetDir "ffmpeg.exe"
+
+          Write-Host "Downloading FFmpeg package from $env:FFMPEG_PACKAGE_URL"
+          Invoke-WebRequest -Uri $env:FFMPEG_PACKAGE_URL -OutFile $archivePath
+
+          Write-Host "Extracting package to $extractDir"
+          if (Test-Path $extractDir) {
+            Remove-Item -Recurse -Force $extractDir
+          }
+          7z x $archivePath "-o$extractDir" -y | Out-Null
+
+          $expectedFfmpeg = Join-Path $extractDir "ffmpeg-7.1.1-full_build\\bin\\ffmpeg.exe"
+          if (Test-Path $expectedFfmpeg) {
+            $ffmpegExe = Get-Item $expectedFfmpeg
+          } else {
+            $ffmpegExe = Get-ChildItem -Path $extractDir -Recurse -Filter ffmpeg.exe `
+              | Where-Object { $_.FullName -match "\\\\bin\\\\ffmpeg\\.exe$" } `
+              | Select-Object -First 1
+          }
+
+          if (-not $ffmpegExe) {
+            throw "ffmpeg.exe not found in extracted package."
+          }
+
+          Write-Host "Resolved ffmpeg source: $($ffmpegExe.FullName)"
+          New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+          Copy-Item -Path $ffmpegExe.FullName -Destination $targetFile -Force
+          Write-Host "Prepared default ffmpeg: $targetFile"
+          if (-not (Test-Path $targetFile)) {
+            throw "Copied ffmpeg.exe not found at target path."
+          }
+          $ffVersionLine = & $targetFile -version | Select-Object -First 1
+          Write-Host "Bundled ffmpeg version: $ffVersionLine"
+
       - run: npm run dist:win:all
       - uses: actions/upload-artifact@v4
         with:

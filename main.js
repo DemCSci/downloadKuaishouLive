@@ -19,6 +19,7 @@ let hasWrittenFrames = false;
 let ffmpegLogs = [];
 let stderrRemainder = '';
 let outputDirectory = '';
+let configuredFfmpegPath = '';
 let progressTimer = null;
 let lowDiskProtectionTriggered = false;
 
@@ -78,18 +79,66 @@ function getOutputDirectory() {
   return outputDirectory || app.getPath('videos');
 }
 
+function getConfiguredFfmpegPath() {
+  if (!configuredFfmpegPath) {
+    return '';
+  }
+
+  if (!fs.existsSync(configuredFfmpegPath)) {
+    configuredFfmpegPath = '';
+    saveSettings();
+    return '';
+  }
+
+  return configuredFfmpegPath;
+}
+
+function normalizeFfmpegPath(filePath) {
+  if (!filePath || typeof filePath !== 'string') {
+    throw new Error('FFmpeg 路径无效');
+  }
+
+  const normalizedPath = path.resolve(filePath.trim());
+  if (!normalizedPath) {
+    throw new Error('FFmpeg 路径无效');
+  }
+
+  if (!fs.existsSync(normalizedPath)) {
+    throw new Error('FFmpeg 文件不存在');
+  }
+
+  const fileStat = fs.statSync(normalizedPath);
+  if (!fileStat.isFile()) {
+    throw new Error('FFmpeg 路径不是文件');
+  }
+
+  if (process.platform === 'win32' && path.extname(normalizedPath).toLowerCase() !== '.exe') {
+    throw new Error('Windows 请先选择 ffmpeg.exe 文件');
+  }
+
+  return normalizedPath;
+}
+
 function saveSettings() {
   const settingsPath = getSettingsPath();
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   fs.writeFileSync(
     settingsPath,
-    JSON.stringify({ outputDirectory: getOutputDirectory() }, null, 2),
+    JSON.stringify(
+      {
+        outputDirectory: getOutputDirectory(),
+        ffmpegPath: configuredFfmpegPath || '',
+      },
+      null,
+      2
+    ),
     'utf8'
   );
 }
 
 function loadSettings() {
   outputDirectory = app.getPath('videos');
+  configuredFfmpegPath = '';
   const settingsPath = getSettingsPath();
   if (!fs.existsSync(settingsPath)) {
     return;
@@ -105,8 +154,17 @@ function loadSettings() {
     ) {
       outputDirectory = parsed.outputDirectory.trim();
     }
+
+    if (parsed && typeof parsed.ffmpegPath === 'string' && parsed.ffmpegPath.trim()) {
+      try {
+        configuredFfmpegPath = normalizeFfmpegPath(parsed.ffmpegPath);
+      } catch {
+        configuredFfmpegPath = '';
+      }
+    }
   } catch {
     outputDirectory = app.getPath('videos');
+    configuredFfmpegPath = '';
   }
 }
 
@@ -462,6 +520,9 @@ function collectFfmpegCandidates() {
 }
 
 function formatFfmpegSource(source) {
+  if (source === 'manual') {
+    return '手动选择';
+  }
   if (source === 'env') {
     return '环境变量 JIUYI_FFMPEG_PATH';
   }
@@ -482,6 +543,24 @@ function formatFfmpegSource(source) {
 }
 
 async function checkFfmpegAvailable() {
+  const selectedPath = getConfiguredFfmpegPath();
+  if (selectedPath) {
+    const probe = await probeFfmpegBinary(selectedPath);
+    if (probe.ok) {
+      return {
+        binaryPath: selectedPath,
+        source: 'manual',
+        priority: 0,
+        versionRaw: probe.versionRaw,
+        version: probe.version,
+      };
+    }
+
+    sendRecordingEvent('log', {
+      message: `手动选择的 FFmpeg 不可用（${probe.error || 'unknown'}），已自动回退到默认配置。`,
+    });
+  }
+
   const candidates = collectFfmpegCandidates();
   const success = [];
   const failed = [];
@@ -502,16 +581,19 @@ async function checkFfmpegAvailable() {
   }
 
   if (success.length === 0) {
+    const helpMessage = process.platform === 'win32'
+      ? '请先在界面点击“选择 FFmpeg”指定 ffmpeg.exe，或确认安装包内已包含默认 FFmpeg。'
+      : '请安装较新版本 FFmpeg，或设置环境变量 JIUYI_FFMPEG_PATH 指向 ffmpeg 可执行文件。';
     throw new Error(
-      `找不到可用 FFmpeg。请安装较新版本 FFmpeg，或设置环境变量 JIUYI_FFMPEG_PATH 指向 ffmpeg 可执行文件。尝试过: ${failed.join('; ')}`
+      `找不到可用 FFmpeg。${helpMessage}尝试过: ${failed.join('; ')}`
     );
   }
 
   success.sort((a, b) => {
-    if (b.version.score !== a.version.score) {
-      return b.version.score - a.version.score;
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
     }
-    return a.priority - b.priority;
+    return b.version.score - a.version.score;
   });
 
   const selected = success[0];
@@ -1020,6 +1102,8 @@ ipcMain.handle('recording:get-settings', async () => {
   return {
     ok: true,
     outputDirectory: getOutputDirectory(),
+    ffmpegPath: getConfiguredFfmpegPath(),
+    requiresManualFfmpeg: process.platform === 'win32',
   };
 });
 
@@ -1051,6 +1135,51 @@ ipcMain.handle('recording:choose-output-dir', async () => {
       ok: false,
       message: `保存目录不可用: ${error.message}`,
       outputDirectory: currentDirectory,
+    };
+  }
+});
+
+ipcMain.handle('recording:choose-ffmpeg', async () => {
+  const currentPath = getConfiguredFfmpegPath();
+  const filters = process.platform === 'win32'
+    ? [{ name: 'FFmpeg 可执行文件', extensions: ['exe'] }]
+    : undefined;
+  const result = await dialog.showOpenDialog({
+    title: '选择 FFmpeg 可执行文件',
+    defaultPath: currentPath || app.getPath('home'),
+    properties: ['openFile'],
+    filters,
+  });
+
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+    return {
+      ok: false,
+      canceled: true,
+      ffmpegPath: currentPath,
+    };
+  }
+
+  try {
+    const normalizedPath = normalizeFfmpegPath(result.filePaths[0]);
+    const probe = await probeFfmpegBinary(normalizedPath);
+    if (!probe.ok) {
+      throw new Error(`ffmpeg 校验失败（${probe.error || 'unknown'}）`);
+    }
+
+    configuredFfmpegPath = normalizedPath;
+    saveSettings();
+
+    return {
+      ok: true,
+      ffmpegPath: configuredFfmpegPath,
+      versionRaw: probe.versionRaw,
+      message: 'FFmpeg 配置成功',
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      ffmpegPath: currentPath,
+      message: `FFmpeg 配置失败: ${error.message}`,
     };
   }
 });

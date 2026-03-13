@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('recorderApi', {
   openFolder: (outputPath) => ipcRenderer.invoke('recording:open-folder', outputPath),
   getSettings: () => ipcRenderer.invoke('recording:get-settings'),
   chooseOutputDir: () => ipcRenderer.invoke('recording:choose-output-dir'),
+  chooseFfmpeg: () => ipcRenderer.invoke('recording:choose-ffmpeg'),
   onEvent: (handler) => {
     const listener = (_event, payload) => handler(payload);
     ipcRenderer.on('recording:event', listener);
