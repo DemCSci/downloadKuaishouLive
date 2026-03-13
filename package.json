@@ -48,14 +48,6 @@
           "**/*.dll",
           "**/*.txt"
         ]
-      },
-      {
-        "from": "node_modules/@ffmpeg-installer",
-        "to": "ffmpeg-bundled",
-        "filter": [
-          "**/ffmpeg",
-          "**/ffmpeg.exe"
-        ]
       }
     ],
     "files": [

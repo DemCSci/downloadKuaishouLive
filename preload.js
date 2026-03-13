@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('recorderApi', {
   getSettings: () => ipcRenderer.invoke('recording:get-settings'),
   chooseOutputDir: () => ipcRenderer.invoke('recording:choose-output-dir'),
   chooseFfmpeg: () => ipcRenderer.invoke('recording:choose-ffmpeg'),
+  appendUiLog: (message) => ipcRenderer.send('recording:append-ui-log', { message }),
   onEvent: (handler) => {
     const listener = (_event, payload) => handler(payload);
     ipcRenderer.on('recording:event', listener);

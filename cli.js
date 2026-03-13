@@ -182,12 +182,12 @@ function materializeBinaryIfNeeded(binaryPath) {
   return targetPath;
 }
 
-function getExternalBundledFfmpeg() {
+function getExternalCustomFfmpeg() {
   const binaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
   const platformTag = `${process.platform}-${process.arch}`;
   const candidates = [
-    path.join(path.dirname(process.execPath), 'ffmpeg-bundled', platformTag, binaryName),
-    path.join(process.cwd(), 'ffmpeg-bundled', platformTag, binaryName),
+    path.join(path.dirname(process.execPath), 'ffmpeg-custom', platformTag, binaryName),
+    path.join(process.cwd(), 'ffmpeg-custom', platformTag, binaryName),
   ];
 
   for (const candidate of candidates) {
@@ -220,9 +220,9 @@ function resolveFfmpegBinary(explicitPath) {
     return normalized;
   }
 
-  const bundled = getExternalBundledFfmpeg();
-  if (bundled) {
-    return bundled;
+  const custom = getExternalCustomFfmpeg();
+  if (custom) {
+    return custom;
   }
 
   const installer = getInstallerFfmpegPath();

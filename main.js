@@ -7,6 +7,9 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 const LOW_DISK_THRESHOLD_BYTES = 10 * 1024 * 1024 * 1024;
 const RECOMMENDED_FFMPEG_MAJOR_VERSION = 5;
+const LOG_RETENTION_FILE_COUNT = 7;
+const LOG_FILE_PREFIX = 'jiuyi-';
+const LOG_FILE_SUFFIX = '.log';
 
 app.setName('jiuyi');
 
@@ -22,6 +25,9 @@ let outputDirectory = '';
 let configuredFfmpegPath = '';
 let progressTimer = null;
 let lowDiskProtectionTriggered = false;
+let cachedLogDirectory = '';
+let logFallbackWarningEmitted = false;
+let logWriteErrorEmitted = false;
 
 function handleStderrLine(line) {
   const trimmed = line.trim();
@@ -39,6 +45,10 @@ function handleStderrLine(line) {
 }
 
 function sendRecordingEvent(type, payload = {}) {
+  if (payload && typeof payload.message === 'string') {
+    writeAppLog(payload.message, type);
+  }
+
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
   }
@@ -47,6 +57,137 @@ function sendRecordingEvent(type, payload = {}) {
     type,
     ...payload,
   });
+}
+
+function formatLogDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate()
+  ).padStart(2, '0')}`;
+}
+
+function formatLogTimestamp(date) {
+  return `${formatLogDate(date)} ${String(date.getHours()).padStart(2, '0')}:${String(
+    date.getMinutes()
+  ).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`;
+}
+
+function getInstallLogDirectory() {
+  const baseDir = app.isPackaged ? path.dirname(process.execPath) : process.cwd();
+  return path.join(baseDir, 'logs');
+}
+
+function getFallbackLogDirectory() {
+  try {
+    return path.join(app.getPath('userData'), 'logs');
+  } catch {
+    return path.join(process.cwd(), 'logs');
+  }
+}
+
+function resolveWritableLogDirectory() {
+  if (cachedLogDirectory) {
+    return cachedLogDirectory;
+  }
+
+  const installLogDirectory = getInstallLogDirectory();
+  const fallbackLogDirectory = getFallbackLogDirectory();
+  const candidates = fallbackLogDirectory === installLogDirectory
+    ? [installLogDirectory]
+    : [installLogDirectory, fallbackLogDirectory];
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
+    try {
+      ensureDirectoryWritable(candidate);
+      cachedLogDirectory = candidate;
+      if (index > 0 && !logFallbackWarningEmitted) {
+        logFallbackWarningEmitted = true;
+        console.warn(
+          `[jiuyi] 日志目录无法写入安装目录，已回退到: ${cachedLogDirectory}`
+        );
+      }
+      return cachedLogDirectory;
+    } catch {
+      // try next candidate
+    }
+  }
+
+  return '';
+}
+
+function cleanupOldLogFiles(logDirectory) {
+  if (!logDirectory) {
+    return;
+  }
+
+  const logFilePattern = new RegExp(`^${LOG_FILE_PREFIX}\\d{4}-\\d{2}-\\d{2}\\${LOG_FILE_SUFFIX}$`);
+  const files = fs
+    .readdirSync(logDirectory)
+    .filter((name) => logFilePattern.test(name))
+    .sort();
+
+  if (files.length <= LOG_RETENTION_FILE_COUNT) {
+    return;
+  }
+
+  const filesToDelete = files.slice(0, files.length - LOG_RETENTION_FILE_COUNT);
+  filesToDelete.forEach((name) => {
+    try {
+      fs.unlinkSync(path.join(logDirectory, name));
+    } catch {
+      // ignore cleanup errors
+    }
+  });
+}
+
+function runLogRetentionCleanup() {
+  try {
+    const logDirectory = resolveWritableLogDirectory();
+    if (!logDirectory) {
+      return;
+    }
+    cleanupOldLogFiles(logDirectory);
+  } catch {
+    // ignore cleanup errors
+  }
+}
+
+function writeAppLog(message, source = 'app') {
+  if (!message || typeof message !== 'string') {
+    return;
+  }
+
+  const normalizedLines = message
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (normalizedLines.length === 0) {
+    return;
+  }
+
+  const logDirectory = resolveWritableLogDirectory();
+  if (!logDirectory) {
+    return;
+  }
+
+  const now = new Date();
+  const logFilePath = path.join(logDirectory, `${LOG_FILE_PREFIX}${formatLogDate(now)}${LOG_FILE_SUFFIX}`);
+  const logSource = source && typeof source === 'string' ? source : 'app';
+  const content = normalizedLines
+    .map((line) => `[${formatLogTimestamp(now)}] [${logSource}] ${line}`)
+    .join('\n')
+    .concat('\n');
+
+  try {
+    fs.appendFileSync(logFilePath, content, 'utf8');
+  } catch (error) {
+    if (!logWriteErrorEmitted) {
+      logWriteErrorEmitted = true;
+      console.error(`[jiuyi] 写入日志文件失败: ${error.message}`);
+    }
+  }
 }
 
 function getSettingsPath() {
@@ -299,37 +440,6 @@ function selectPreferredStreamUrl(streamUrls) {
   return [...streamUrls].sort((a, b) => scoreStreamUrl(b) - scoreStreamUrl(a))[0];
 }
 
-function getBundledFfmpegPath() {
-  const binaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-  const byPlatform = process.platform === 'win32'
-    ? process.arch === 'ia32'
-      ? ['win32-ia32', 'win32-x64']
-      : ['win32-x64', 'win32-ia32']
-    : process.platform === 'darwin'
-      ? process.arch === 'arm64'
-        ? ['darwin-arm64', 'darwin-x64']
-        : ['darwin-x64', 'darwin-arm64']
-      : [];
-
-  if (!app.isPackaged) {
-    return '';
-  }
-
-  for (const platformDir of byPlatform) {
-    const candidatePath = path.join(
-      process.resourcesPath,
-      'ffmpeg-bundled',
-      platformDir,
-      binaryName
-    );
-    if (fs.existsSync(candidatePath)) {
-      return candidatePath;
-    }
-  }
-
-  return '';
-}
-
 function getLocalOverrideFfmpegPaths() {
   const binaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
   const candidates = [];
@@ -511,7 +621,6 @@ function collectFfmpegCandidates() {
   // 系统 PATH 中的 ffmpeg（命令名）
   pushUniqueCandidate(candidates, seen, 'ffmpeg', 'system', 2, { mustExist: false });
 
-  pushUniqueCandidate(candidates, seen, getBundledFfmpegPath(), 'bundled', 3, { mustExist: true });
   pushUniqueCandidate(candidates, seen, getDevelopmentFfmpegPath(), 'development', 4, {
     mustExist: true,
   });
@@ -531,9 +640,6 @@ function formatFfmpegSource(source) {
   }
   if (source === 'system') {
     return '系统 PATH';
-  }
-  if (source === 'bundled') {
-    return '应用内置';
   }
   if (source === 'development') {
     return '开发依赖';
@@ -1187,7 +1293,15 @@ ipcMain.handle('recording:choose-ffmpeg', async () => {
   }
 });
 
+ipcMain.on('recording:append-ui-log', (_event, payload) => {
+  if (!payload || typeof payload.message !== 'string') {
+    return;
+  }
+  writeAppLog(payload.message, 'ui');
+});
+
 app.whenReady().then(() => {
+  runLogRetentionCleanup();
   loadSettings();
   createWindow();
 
@@ -1199,6 +1313,7 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  runLogRetentionCleanup();
   stopProgressTicker();
   if (ffmpegProcess && !ffmpegProcess.killed) {
     stopRequested = true;

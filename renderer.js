@@ -37,14 +37,15 @@ if (douyinPageUrlInput && !douyinPageUrlInput.value.trim()) {
 let activeMode = 'generic';
 let currentOutputPath = '';
 let isRecording = false;
-let requiresManualFfmpeg = false;
+let requiresManualFfmpeg = true;
 let configuredFfmpegPath = '';
 
 const MAX_LOG_LINES = 600;
 const MAX_LOG_CHARS = 80000;
 const MAX_SINGLE_LOG_LENGTH = 1200;
 
-function appendLog(message) {
+function appendLog(message, options = {}) {
+  const { persist = true } = options;
   if (!message) {
     return;
   }
@@ -72,6 +73,10 @@ function appendLog(message) {
   }
 
   logsEl.scrollTop = logsEl.scrollHeight;
+
+  if (persist && window.recorderApi && typeof window.recorderApi.appendUiLog === 'function') {
+    window.recorderApi.appendUiLog(safeMessage);
+  }
 }
 
 function formatBytes(bytes) {
@@ -190,21 +195,35 @@ function syncButtons() {
 }
 
 async function loadSettings() {
-  const result = await window.recorderApi.getSettings();
-  if (!result || !result.ok) {
+  try {
+    const result = await window.recorderApi.getSettings();
+    if (!result || !result.ok) {
+      setOutputDirectory('');
+      setFfmpegSelectorVisible(true);
+      requiresManualFfmpeg = true;
+      setFfmpegPathDisplay(configuredFfmpegPath);
+      appendLog('读取配置失败，已启用 FFmpeg 手动选择兜底模式。');
+      syncButtons();
+      return;
+    }
+
+    requiresManualFfmpeg = Boolean(result.requiresManualFfmpeg);
+    setFfmpegSelectorVisible(requiresManualFfmpeg);
+    setOutputDirectory(result.outputDirectory);
+    setFfmpegPathDisplay(result.ffmpegPath || '');
+
+    if (requiresManualFfmpeg && !configuredFfmpegPath) {
+      appendLog('Windows 当前未手动选择 FFmpeg，将优先使用内置默认 FFmpeg。');
+    }
+  } catch (error) {
     setOutputDirectory('');
-    appendLog('读取保存目录失败，已使用默认目录。');
-    return;
+    setFfmpegSelectorVisible(true);
+    requiresManualFfmpeg = true;
+    setFfmpegPathDisplay(configuredFfmpegPath);
+    appendLog(`读取配置失败，已启用 FFmpeg 手动选择兜底模式: ${error.message}`);
   }
 
-  requiresManualFfmpeg = Boolean(result.requiresManualFfmpeg);
-  setFfmpegSelectorVisible(requiresManualFfmpeg);
-  setOutputDirectory(result.outputDirectory);
-  setFfmpegPathDisplay(result.ffmpegPath || '');
-
-  if (requiresManualFfmpeg && !configuredFfmpegPath) {
-    appendLog('Windows 当前未手动选择 FFmpeg，将优先使用内置默认 FFmpeg。');
-  }
+  syncButtons();
 }
 
 startBtn.addEventListener('click', async () => {
@@ -354,7 +373,7 @@ window.recorderApi.onEvent((event) => {
   }
 
   if (event.message && event.type !== 'log') {
-    appendLog(event.message);
+    appendLog(event.message, { persist: false });
   }
 
   if (event.outputPath) {
@@ -370,7 +389,7 @@ window.recorderApi.onEvent((event) => {
     }
     case 'log': {
       if (event.message) {
-        appendLog(event.message);
+        appendLog(event.message, { persist: false });
       }
       break;
     }
@@ -405,7 +424,7 @@ window.recorderApi.onEvent((event) => {
 });
 
 applyActiveModeUI();
-setFfmpegSelectorVisible(false);
+setFfmpegSelectorVisible(true);
 setFfmpegPathDisplay('');
 syncButtons();
 updateMetrics(0, NaN);
